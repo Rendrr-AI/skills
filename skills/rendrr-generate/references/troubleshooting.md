@@ -49,8 +49,12 @@ content are the usual causes. If the user insists on a real person's likeness, s
 rather than trying synonyms.
 
 **A start frame is refused as a real person.** Some video models refuse photos that look like a real
-identifiable person. This is a hard provider policy, not a transient error. Switch to another video
-model from the live list, or start from a generated (non-photographic-source) frame.
+identifiable person. When this happens on Seedance, `genai_free` answers with
+`needsConfirm: "privacy_fallback"` plus a suggested fallback model and its price in credits — it is a
+question, not a failure. Relay the question to the user in one line (fallback model + credits). If
+they accept, call `genai_free` again with the SAME arguments plus `confirmFallback: true`. If they
+decline, stop or pick another video model from the live list. Other models refuse outright without
+the offer — there, switch models or start from a generated (non-photographic-source) frame.
 
 **Not enough credits.** The account balance is short for this generation. Tell the user, name the
 rough cost if the error carries one, and point at `https://app.rendrr.ai/billing`. Do not retry with a
