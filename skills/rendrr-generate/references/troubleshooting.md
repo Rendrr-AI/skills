@@ -15,7 +15,8 @@ access starts at the **Pro** plan. Tell the user plainly and point them at
 **`-32004` / `tool-forbidden`.** The tool exists on the server but not for this account — it is an
 owner-only tool. Do not retry and do not try a variant name. Solve the user's request with the
 customer tools: `genai_gateway_models`, `genai_list_models`, `genai_free`, `genai_enhance`,
-`genai_library`, `genai_list_characters`, `genai_list_presets`, `genai_list_templates`.
+`genai_library`, `genai_list_characters`, `genai_list_presets`, `genai_list_templates`,
+`genai_recipes`.
 
 **Unauthorized / the client asks to sign in again.** The access token expired. Reconnect through the
 same connector flow; there is no token to paste manually.
