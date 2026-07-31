@@ -13,6 +13,15 @@ catalog, how to write prompts that hold up, and what to do when a generation com
 npx skills add rendrr-ai/skills
 ```
 
+Already installed? Get the latest version of the skill files with:
+
+```bash
+npx skills update
+```
+
+Day-to-day improvements (models, prompt recipes, pricing) ship server-side and reach every
+installed skill instantly — updating is only needed when the skill files themselves change.
+
 Then connect rendrr itself:
 
 - **claude.ai / Claude Desktop** — Settings → Connectors → *Add custom connector* → URL
