@@ -13,11 +13,8 @@ catalog, how to write prompts that hold up, and what to do when a generation com
 npx skills add rendrr-ai/skills
 ```
 
-Already installed? Get the latest version of the skill files with:
-
-```bash
-npx skills update
-```
+Already installed? `npx skills update` refreshes the skills you have; re-run the `add` command
+above to also pick up newly added skills.
 
 Day-to-day improvements (models, prompt recipes, pricing) ship server-side and reach every
 installed skill instantly — updating is only needed when the skill files themselves change.
