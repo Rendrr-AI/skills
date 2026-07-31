@@ -10,8 +10,7 @@ catalog, how to write prompts that hold up, and what to do when a generation com
 ## Install
 
 ```bash
-# NOTE: repository path is finalised at publish time — check the repo URL before running this.
-npx skills add robinwessels/rendrr-skills
+npx skills add rendrr-ai/skills
 ```
 
 Then connect rendrr itself:
