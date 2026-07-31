@@ -37,6 +37,7 @@ own rendrr credits.
 |---|---|
 | **rendrr-generate** | Generate and edit images, video and audio. Picks the model from the live catalog, optionally sharpens the prompt first, delivers the media URL. |
 | **rendrr-characters** | Reuse an existing rendrr character (AI influencer, recurring persona) across new generations so the face and identity stay recognisable. |
+| **rendrr-product-shots** | Build commercial imagery around a real product — packshots, in-context scenes, banners, ad visuals — with the label, logo and pack text kept faithful to the reference. |
 
 Each skill is a thin router: the `SKILL.md` holds the workflow, and the deeper material
 (prompt craft, identity consistency, error recovery) lives in `references/` and is read only when
