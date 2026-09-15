@@ -62,7 +62,7 @@ Sizes: `landscape_16_9`, or `landscape_4_3` for a wider-than-tall email header.
 
 An existing shot re-dressed for a moment — winter, a holiday, a sale, a new brand palette.
 
-This is an edit, so read the `edit-instruction` entry from `recipes` first. Change one axis:
+This is an edit, so run the prompt through `enhance` with `recipe: "edit-instruction"` before generating. Change one axis:
 palette, props and light. Keep the pack, the camera and the framing locked, and say so explicitly —
 list what must not move. The most common failure is a prompt that re-describes the whole picture,
 which the model reasonably reads as a request for a different picture.

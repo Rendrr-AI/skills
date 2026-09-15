@@ -48,8 +48,9 @@ the file itself changes.
 - **Nothing about the catalog is baked in.** The skills never hardcode model names, prices or
   capabilities — they call `gateway_models` at the start of a task and choose from whatever the
   account can actually reach. rendrr's line-up changes server-side; the skills keep working.
-- **Customer tools only.** The skills use the customer tool surface: model discovery, prompt
-  enhancement, generation, and the user's own library, characters, presets and templates. The
+- **Customer tools only.** The skills use the customer tool surface: model discovery, the credit
+  balance and a price-only `dryRun`, prompt enhancement, generation, and the user's own library,
+  characters, presets and templates. The
   product-shot and UGC skills can also save a result as a named library element and prepare a post —
   `post_draft` only queues it for human approval and never publishes by itself.
 

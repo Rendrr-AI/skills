@@ -118,8 +118,9 @@ server-side, so the call stays simple — but only if you feed it the right asse
    native audio.
 3. **Keep `identity` verbatim and write nothing about the face.** Your description competes with the
    sheet and the anchors exactly as it competes with a reference. Two identities per clip at most.
-4. **Refs-only is the identity lane.** A photoreal start frame in `image_url` can return
-   `needsConfirm: "privacy_fallback"`; accepting it drops the sheet. For a locked scene and a locked
+4. **Refs-only is the identity lane.** A photoreal start frame in `image_url` can make Seedance hand
+   off to a fallback model by itself (the reply carries `switched`), and that fallback drops the
+   sheet. For a locked scene and a locked
    face, put the approved still in `image_urls` as the last reference and say "open on reference
    image N".
 5. **One gesture, under 10 s.** When the character speaks: `generate_audio: true`, one quoted line

@@ -122,18 +122,19 @@ straight to the seasonal-restyle path in `references/shot-modes.md` and change o
 Skip any question whose answer is already obvious from the conversation, the uploaded file, or a
 saved library item. Four questions is the ceiling; two is usually enough.
 
-## Step 2 — Read the house recipe
+## Step 2 — Know the house recipe
 
-Call **`recipes`** with `kind: "image"` — and again with `kind: "edit"` when you are altering an
-existing shot. It returns rendrr's own per-use-case guidance, the same wording the studio enhances
-prompts with. Two entries carry this work:
+rendrr's per-use-case recipes live on the server, versioned, and outrank anything you remember from
+an earlier session. `recipes` lists them (key, title, kinds); the guidance itself is applied
+server-side when you run a prompt through **`enhance`** with that key. Two carry this work:
 
-- **`product-shot`** — how to render the product as a clean, catalog-grade reference.
-- **`character-scene`** — the placement pattern: one role line per attached reference, followed by a
-  scene lock. Written around characters, it applies unchanged to an object.
+- **`product-shot`** — the product as a clean, catalog-grade reference.
+- **`character-scene`** — the placement pattern: one role line per attached reference, then a scene
+  lock. Written around characters, it applies unchanged to an object.
 
-Follow what comes back. The catalog is versioned server-side and outranks anything you remember from
-an earlier session.
+After composing the prompt in Step 4, call `enhance` with `kind: "image"`, `refs: <number of
+references>` and `recipe: "product-shot"` or `"character-scene"`, and generate with what comes back.
+For an edit of an existing shot use `recipe: "edit-instruction"`.
 
 ## Step 3 — Pick an edit-capable model
 

@@ -93,7 +93,7 @@ different model.
 "The spoken words are audio and lip movement only — no on-screen text, subtitles, captions or words
 anywhere in the video." The studio appends that sentence itself; over MCP you append it. This is the
 one negation that stays — without it video models burn the quote in as a subtitle. Two speakers =
-two clips, or the director shape from `recipes` (`cinematic-video`). On Seedance the voice is
+two clips, or the director shape (`enhance` with `kind: "director"`). On Seedance the voice is
 native: pass `generate_audio: true` and the model speaks the line.
 
 ## Aspect ratio
@@ -113,7 +113,7 @@ model built, and the subject is usually the part you lose.
 The candid look is camera behaviour, not a device name: "one continuous handheld take at arm's
 length", "drifts a few degrees and corrects", "reacts to the subject slightly late", "natural colour,
 fine grain, no grade". A named phone or camera is rendered in frame. If a brief demands one, pair it
-with the single-frame guard from `recipes` (`ugc-ad`).
+with the single-frame guard: `enhance` with `recipe: "ugc-ad"` appends it.
 
 ## Known weak spots
 

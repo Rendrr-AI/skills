@@ -184,9 +184,9 @@ Two routes, and the choice is the user's:
 - **Over MCP** — `generate`, with the shape in `rendrr-generate` under "UGC talking-head / try-on
   recipe". Use this when you are assembling the clip for them.
 
-Deeper guidance lives in the server itself: call `recipes` with `kind: "video"` and read the
-`ugc-talking-head` entry — that is the same text the studio's auto-enhancer injects, so it is
-always current.
+Deeper guidance lives in the server itself: run the assembled prompt through `enhance` with
+`kind: "video"` and `recipe: "ugc-talking-head"` — the same recipe the studio's auto-enhancer
+injects, applied server-side, so it is always current.
 
 ## After the run
 

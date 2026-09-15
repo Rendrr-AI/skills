@@ -145,8 +145,8 @@ Seedance rows (ids starting `ub/seedance-`) differ from other video models in th
    dropped, body → next headless variant, body dropped for the board, or a blurred user ref), and two
    board-caused rescues pause the board for that character until its Soul is rebuilt. For a pixel-exact face use
    Kling 3.0 image-to-video from an approved still (no person filter, native audio). A photoreal
-   START frame on Seedance answers `needsConfirm: "privacy_fallback"` (see
-   `references/troubleshooting.md`).
+   START frame on Seedance makes rendrr switch to a fallback model by itself; the reply then carries
+   `switched` (see `references/troubleshooting.md`).
 
 Settings that hold: `aspect_ratio: "9:16"`, `resolution: "720p"` (drafts) or `"1080p"`, `duration`
 4/5/6/8/10 (up to 15 on Seedance 2.5). One continuous take, at or under 10 s.
@@ -187,7 +187,8 @@ Prompt shape, in this order, 90–150 words:
    image 2. The spoken words are audio and lip movement only — no on-screen text, subtitles,
    captions or words anywhere in the video.`
 
-Deeper: `recipes` with `kind: "video"` (entries `ugc-talking-head`, `cinematic-video`).
+Deeper: run the draft through `enhance` with `kind: "video"` and `recipe: "ugc-talking-head"` (or
+`"cinematic-video"`); the house recipe is applied server-side.
 
 ### Which talking-head lane
 
@@ -279,6 +280,11 @@ Generations are charged to the signed-in user's own rendrr credits, and the resp
 charge in `credits`. Do not open with pricing and do not annotate every result with its cost. Mention
 it when the user asks, when a run is unusually expensive (long or high-resolution video), or when a
 call fails for insufficient credits. Failed generations are not charged.
+
+Before an expensive run, price it: call `generate` with the same arguments plus `dryRun: true`. It
+returns `{ model, credits }` — the exact number the studio's Generate button shows — without running,
+charging or counting against any limit. `credits` (the tool) returns the balance: total, plan credits
+and top-up credits. Quote credits, never dollars.
 
 ## References
 
