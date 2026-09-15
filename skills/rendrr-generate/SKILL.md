@@ -1,5 +1,5 @@
 ---
-version: 1.0.0
+version: 1.1.0
 name: rendrr-generate
 description: >-
   Generate and edit images, video and audio with rendrr.ai, choosing the model
@@ -210,9 +210,10 @@ prompt on the same model — same refusal, billed twice.
 
 ## Calling `generate`
 
-Arguments: `model` (**required**), `prompt`, `input` (object). `prompt` is merged into `input`, so
-either place works; keep `prompt` at the top level for readability. The schema also exposes an
-`account` argument — leave it out, it is ignored for user accounts.
+Arguments: `model`, `prompt`, `input` (object) — or `template` instead of `model` + `prompt` (see
+*Templates and apps* below). `prompt` is merged into `input`, so either place works; keep `prompt` at
+the top level for readability. The schema also exposes an `account` argument — leave it out, it is
+ignored for user accounts.
 
 **Text to image**
 
@@ -274,6 +275,28 @@ one distinctive feature — and say the pack will carry no wordmark.
 `credits` and `note`. Deliver `media[].url`. When cost comes up, quote `credits` — that is the unit
 the user is billed in.
 
+## Templates and apps
+
+Some briefs have a house recipe that rendrr builds server-side, identical to the studio — use it
+instead of writing the prompt yourself. `template_get` without an id lists them: the presets `ugc`
+(a character and a product in seven ad shapes) and `pov` (first-person shot), the user's saved
+templates (`kv:<id>`) and the one-click apps (`app:upscale`, `app:remove-background`, `app:reframe`,
+`app:expand-image`, `app:video-upscale`, `app:video-upscale-4k`). `template_get { id }` returns the
+modes, slots, fields and chips; then run it with `generate`:
+
+```json
+{ "template": { "id": "ugc", "mode": "review",
+                "slots": { "character": "Lucy", "product": "Black sports bra" },
+                "fields": { "line": "Three weeks in, and here is the part I did not expect.", "stress": "expect" } } }
+```
+
+Slots take a character or library item by id or name, or an https URL. `dryRun: true` prices a
+template run like any other. An app with a video input can still be running after about a minute; the
+reply then says `pending` with a `statusUrl` — tell the user, do not start it again.
+
+To judge a finished clip, call `virality { video_url }` (max 15 s): a score, the second the hook lands,
+a hold estimate and timestamped fixes. It costs a few credits; a failed analysis costs nothing.
+
 ## Credits
 
 Generations are charged to the signed-in user's own rendrr credits, and the response reports the real
@@ -285,6 +308,23 @@ Before an expensive run, price it: call `generate` with the same arguments plus 
 returns `{ model, credits }` — the exact number the studio's Generate button shows — without running,
 charging or counting against any limit. `credits` (the tool) returns the balance: total, plan credits
 and top-up credits. Quote credits, never dollars.
+
+## CLI (only when `RENDRR_TOKEN` is set)
+
+If the environment has `RENDRR_TOKEN` (today: the account owner's key), the `rendrr` CLI does the same
+through the same tools and is cheaper in a terminal agent — and it can upload local files, which MCP
+cannot:
+
+```bash
+rendrr generate --model <id> --prompt "<text>" --image ./packshot.png --dry-run
+rendrr generate --template ugc --mode review --slot character=Lucy --slot product="Black sports bra" --field line="..."
+rendrr apps run upscale ./photo.jpg
+rendrr virality ./clip.mp4 --platform Reels
+rendrr library upload ./packshot.png --name "Sundown Tonic" --tag prop
+rendrr credits
+```
+
+Add `--json` for the raw reply. Without the token, use the MCP tools above.
 
 ## References
 

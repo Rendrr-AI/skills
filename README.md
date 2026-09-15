@@ -49,10 +49,19 @@ the file itself changes.
   capabilities — they call `gateway_models` at the start of a task and choose from whatever the
   account can actually reach. rendrr's line-up changes server-side; the skills keep working.
 - **Customer tools only.** The skills use the customer tool surface: model discovery, the credit
-  balance and a price-only `dryRun`, prompt enhancement, generation, and the user's own library,
-  characters, presets and templates. The
+  balance and a price-only `dryRun`, prompt enhancement, generation (also from a template or a
+  one-click app via `template_get` + `generate { template }`), the virality check on a clip, and the
+  user's own library, characters, presets and templates. The
   product-shot and UGC skills can also save a result as a named library element and prepare a post —
   `post_draft` only queues it for human approval and never publishes by itself.
+
+## CLI (preview)
+
+`bin/rendrr.mjs` is a small, dependency-free command line for the same tools — handy in a terminal
+agent and for local files and batches (`rendrr generate`, `rendrr apps run`, `rendrr virality`,
+`rendrr library upload`, `rendrr credits`, `rendrr --help` for the rest). Today it runs with the
+account owner's key (`RENDRR_TOKEN`); signing in with your own rendrr account from the terminal comes
+in a later release, together with `npx rendrr`.
 
 ## Licence
 
