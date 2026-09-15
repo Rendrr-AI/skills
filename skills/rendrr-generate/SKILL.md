@@ -291,8 +291,10 @@ modes, slots, fields and chips; then run it with `generate`:
 ```
 
 Slots take a character or library item by id or name, or an https URL. `dryRun: true` prices a
-template run like any other. An app with a video input can still be running after about a minute; the
-reply then says `pending` with a `statusUrl` — tell the user, do not start it again.
+template run like any other. An app can still be running after about 20 seconds (video inputs usually
+are); the reply then says `pending` with a `statusUrl` — tell the user, do not start it again. A video
+app needs the clip stored in rendrr (library item or upload), because its length is measured before
+it runs.
 
 To judge a finished clip, call `virality { video_url }` (max 15 s): a score, the second the hook lands,
 a hold estimate and timestamped fixes. It costs a few credits; a failed analysis costs nothing.

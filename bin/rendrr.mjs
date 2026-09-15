@@ -44,19 +44,21 @@ Usage: rendrr <command> [args] [--json] [--dry-run]
 Env: RENDRR_TOKEN (required), RENDRR_HOST (default https://api.rendrr.ai)`;
 
 // ── args ─────────────────────────────────────────────────────────────────────────────────────────
+// Flags that are switches: they never take the next word as their value (otherwise
+// `apps run upscale --dry-run photo.png` would swallow the file).
+const BOOL_FLAGS = new Set(['json', 'dryRun', 'help']);
 function parseArgs(argv) {
   const pos = [], flags = {}, multi = { image: [], slot: [], field: [], choice: [], param: [], tag: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const eq = a.indexOf('=');
-      let key = eq === -1 ? a.slice(2) : a.slice(2, eq);
+      let key = (eq === -1 ? a.slice(2) : a.slice(2, eq)).replace(/-([a-z])/g, (_, c) => c.toUpperCase());
       let val = eq === -1 ? undefined : a.slice(eq + 1);
       if (val === undefined) {
         const nx = argv[i + 1];
-        if (nx !== undefined && !nx.startsWith('--')) { val = nx; i++; } else val = true;
+        if (!BOOL_FLAGS.has(key) && nx !== undefined && !nx.startsWith('--')) { val = nx; i++; } else val = true;
       }
-      key = key.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
       if (multi[key]) multi[key].push(String(val)); else flags[key] = val;
     } else pos.push(a);
   }
@@ -178,7 +180,9 @@ async function main() {
       let items = await tool('library', {}); failIf(items);
       items = Array.isArray(items) ? items : [];
       if (flags.kind) items = items.filter((i) => i.kind === flags.kind);
-      if (flags.tag) items = items.filter((i) => (i.tags || []).indexOf(String(flags.tag)) !== -1);
+      // --tag is collected as a list (it may repeat); every given tag must be on the item.
+      const want = [].concat(...multi.tag.map((t) => t.split(','))).map((t) => t.trim()).filter(Boolean);
+      if (want.length) items = items.filter((i) => want.every((t) => (i.tags || []).indexOf(t) !== -1));
       out(items, (xs) => { for (const i of xs) console.log([i.id, i.kind, i.name || '', abs(i.url), (i.tags || []).join(',')].join('\t')); console.log(xs.length + ' item(s)'); });
       return;
     }
@@ -256,6 +260,8 @@ async function main() {
     for (;;) {
       const j = await http('/api/fal/poll', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ statusUrl: su, responseUrl: ru }) });
       failIf(j);
+      // Some refusals (e.g. an invalid poll URL) carry only { error } — stop instead of waiting out the timeout.
+      if (j && j.error && !j.done) die(String(j.error), 1);
       if (j.done) { out(j, printMedia); return; }
       if (Date.now() > limit) die('timed out — still ' + (j.status || 'running'), 3);
       if (!AS_JSON) process.stderr.write('.');
