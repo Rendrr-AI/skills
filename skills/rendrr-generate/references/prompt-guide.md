@@ -61,6 +61,19 @@ are; change only the jacket colour."
 - A reference supplies appearance. It does not supply pose, camera or lighting; those still come from
   your prompt.
 
+## A product in hand
+
+A held object stays held when the hand is given something physical to do. Name four things:
+
+- **contact** — "fingers wrapped around the neck of the bottle, thumb resting on the label edge"
+- **weight** — "the wrist angled under its weight", "resting in the open palm"
+- **occlusion** — "the lower third of the label hidden behind the fingers" (fewer visible fingers,
+  fewer errors)
+- **orientation** — "label facing the lens", "tilted so the front panel catches the window light"
+
+One grip, held still or moved once. Floating, hovering and levitating are rendered on request; when
+the product must sit in a hand, none of those words appear. Count the fingers before delivering.
+
 ## Video
 
 **Text to video.** Describe one continuous shot. Name the camera move (slow push-in, dolly left,
@@ -75,9 +88,13 @@ Keep motion physically plausible. Calm, well-specified movement survives; franti
 morphing, extra limbs and melted faces. If a result distorts, the first fix is less motion, not a
 different model.
 
-Dialogue is spoken, never shown. If a character speaks, say so as speech, and state that no on-screen
-text, subtitle or caption appears — video models otherwise like to render quoted words as burnt-in
-subtitles.
+**Dialogue.** One line per clip, 8–14 words, in quotes, spoken to the lens, with a delivery note
+(pace, the stressed word, the expression on the last word). Then close with the guard, verbatim:
+"The spoken words are audio and lip movement only — no on-screen text, subtitles, captions or words
+anywhere in the video." The studio appends that sentence itself; over MCP you append it. This is the
+one negation that stays — without it video models burn the quote in as a subtitle. Two speakers =
+two clips, or the director shape from `recipes` (`cinematic-video`). On Seedance the voice is
+native: pass `generate_audio: true` and the model speaks the line.
 
 ## Aspect ratio
 
@@ -90,6 +107,13 @@ Decide from the destination, not from habit:
 
 Generate at the ratio you need. Cropping a 16:9 render into 9:16 throws away the composition the
 model built, and the subject is usually the part you lose.
+
+## Phone-UGC realism
+
+The candid look is camera behaviour, not a device name: "one continuous handheld take at arm's
+length", "drifts a few degrees and corrects", "reacts to the subject slightly late", "natural colour,
+fine grain, no grade". A named phone or camera is rendered in frame. If a brief demands one, pair it
+with the single-frame guard from `recipes` (`ugc-ad`).
 
 ## Known weak spots
 

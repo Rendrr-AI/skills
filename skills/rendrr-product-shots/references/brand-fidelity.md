@@ -72,7 +72,7 @@ Work in this order and stop as soon as it is right:
 3. **Change the framing, not the model.** Bring the product closer, straighten the angle to face the
    camera, raise the resolution. Swapping models first feels productive and usually is not — the same
    under-specified reference fails everywhere.
-4. **Then try another edit-capable model** from `genai_gateway_models`, preferring one whose title or
+4. **Then try another edit-capable model** from `gateway_models`, preferring one whose title or
    description mentions typography or design work.
 5. **Point the user at the prop sheet flow in the rendrr app.** When a product comes back wrong
    repeatedly, the reference is the problem, not the prompt. In the rendrr studio the user can save

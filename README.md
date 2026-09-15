@@ -25,8 +25,8 @@ Then connect rendrr itself:
   `https://mcp.rendrr.ai/mcp`. Sign in with Google. No API key.
 - **Claude Code** — `claude mcp add --transport http rendrr https://mcp.rendrr.ai/mcp`
 
-MCP access is included from the **Pro** plan upward. Generations are charged to the signed-in user's
-own rendrr credits.
+MCP access is included from the **Expert** plan upward. Generations are charged to the signed-in
+user's own rendrr credits.
 
 ## Skills
 
@@ -35,19 +35,23 @@ own rendrr credits.
 | **rendrr-generate** | Generate and edit images, video and audio. Picks the model from the live catalog, optionally sharpens the prompt first, delivers the media URL. |
 | **rendrr-characters** | Reuse an existing rendrr character (AI influencer, recurring persona) across new generations so the face and identity stay recognisable. |
 | **rendrr-product-shots** | Build commercial imagery around a real product — packshots, in-context scenes, banners, ad visuals — with the label, logo and pack text kept faithful to the reference. |
+| **rendrr-ugc-ads** | Make a UGC-style ad clip: a character holds, wears, opens or reviews a real product and speaks one line to the lens. Seven shapes (talking head, unboxing, how-to, review, try-on, showcase, problem/fix). |
+| **rendrr-ad-multiplier** | Turn one existing ad clip into several versions with one named thing changed per version — the person, the product, the outfit, the background or one added effect. |
 
 Each skill is a thin router: the `SKILL.md` holds the workflow, and the deeper material
 (prompt craft, identity consistency, error recovery) lives in `references/` and is read only when
-it is actually needed.
+it is actually needed. Every `SKILL.md` carries a `version:` in its frontmatter; it changes whenever
+the file itself changes.
 
 ## Design notes
 
 - **Nothing about the catalog is baked in.** The skills never hardcode model names, prices or
-  capabilities — they call `genai_gateway_models` at the start of a task and choose from whatever the
+  capabilities — they call `gateway_models` at the start of a task and choose from whatever the
   account can actually reach. rendrr's line-up changes server-side; the skills keep working.
-- **Read-only by default.** The skills use only the customer tool surface: model discovery, prompt
-  enhancement, generation, and read-only listing of the user's own library, characters, presets and
-  templates.
+- **Customer tools only.** The skills use the customer tool surface: model discovery, prompt
+  enhancement, generation, and the user's own library, characters, presets and templates. The
+  product-shot and UGC skills can also save a result as a named library element and prepare a post —
+  `post_draft` only queues it for human approval and never publishes by itself.
 
 ## Licence
 

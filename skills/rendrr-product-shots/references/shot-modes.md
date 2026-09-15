@@ -62,13 +62,17 @@ Sizes: `landscape_16_9`, or `landscape_4_3` for a wider-than-tall email header.
 
 An existing shot re-dressed for a moment — winter, a holiday, a sale, a new brand palette.
 
-This is an edit, so read the `edit-instruction` entry from `genai_recipes` first. Change one axis:
+This is an edit, so read the `edit-instruction` entry from `recipes` first. Change one axis:
 palette, props and light. Keep the pack, the camera and the framing locked, and say so explicitly —
 list what must not move. The most common failure is a prompt that re-describes the whole picture,
 which the model reasonably reads as a request for a different picture.
 
 Attach the original shot as the reference, and attach the original packshot alongside it when the
 label is small in frame — the restyle pass is where fine label detail gets softened.
+
+Named aesthetics are stronger anchors than a description of one: clean girl, cottagecore, quiet
+luxury, dark academia, Y2K. Pair one with the occasion (Christmas, Valentine's, Black Friday) and the
+"keep the pack, camera and framing" clause; that is the whole prompt.
 
 Size: whatever the source was.
 
@@ -101,6 +105,13 @@ the wrong side, a grip that no wrist could achieve. Reduce the surface area for 
 - Never stack two actions ("holding it while pointing at the label"). One action per generation.
 - Say the fingers are relaxed and naturally spaced, the wrist at a natural angle.
 
+Write the grip physically (paste into the scene block and adapt): "held in the right hand at chest
+height, fingers wrapped around the neck, thumb resting on the label edge, the wrist angled under its
+weight, label facing the lens, the lower third of the label hidden behind the fingers; the hand
+still, fingers relaxed and naturally spaced." Contact, weight, orientation, one occlusion — that is
+what keeps a product in a hand instead of hovering beside one. Floating, hovering and levitating are
+rendered on request; in a hands-on prompt none of them appear.
+
 **Always review the fingers before delivering.** Count them. This is the one mode where you check the
 result twice — once for the label, once for the hand — and regenerating is normal rather than a sign
 something went wrong. If two attempts both fail, move the hand further out of frame or switch to
@@ -131,6 +142,75 @@ Size: `landscape_16_9`.
 
 ---
 
+## Pinterest pin
+
+Vertical 2:3, and the aesthetic is the point — Pinterest rewards a mood, not a product listing. The
+pack sits inside a styled still life rather than being the whole frame.
+
+- Frame vertical 2:3, product occupying roughly a third of the height, placed off-centre.
+- Build a small still life around it: two or three props that belong to the same world (a linen
+  napkin, a cut fruit, a stem of eucalyptus), never more.
+- Soft directional daylight, real shadows, a muted palette that leaves room for a text overlay at
+  the top or bottom.
+- Say "space left clear at the top third" if the user will add a headline in Pinterest itself.
+
+Ask for the palette if the brand has one; a pin that clashes with the feed it lands in gets scrolled.
+
+---
+
+## Social carousel
+
+Three to ten frames that read as one set. The failure mode is not a bad frame, it is ten frames
+that look like ten different shoots.
+
+- Fix everything shared **once** and repeat it verbatim in every frame: the same surface, the same
+  light direction and quality, the same camera height, the same palette.
+- Vary exactly one axis across the set — the angle, the prop, or the crop. Not several.
+- Generate them one at a time and carry the winning scene block forward unchanged; changing the
+  wording between frames is what breaks the set.
+- Frame 1 has to work alone, because most viewers see only that one. Put the product largest there.
+
+Square (`square_hd`) unless the user says otherwise — it is the only ratio that survives every
+platform's crop.
+
+---
+
+## Ad creative pack
+
+A coordinated set of static ad variants for paid social. Same product, same offer, deliberately
+different openings, so the buying platform has something to test against.
+
+- Ask what the offer and the angle are before generating anything. An ad pack without a hook is
+  just a lookbook.
+- Produce three to five variants that differ on the **visual hook**, not on decoration: product
+  alone on colour · product in use · product with its result · product at scale next to something
+  familiar · product mid-motion.
+- Keep the pack recognisably one campaign: one palette, one light, one treatment.
+- Leave a clear zone for the headline in every variant, in the same place, so one text layer fits
+  all of them.
+- Never bake the headline, price or claim into the image. Copy belongs in the ad manager, where it
+  can be edited without a regeneration — and where it is legally the user's text.
+
+---
+
+## Model try-on
+
+The product worn or used by a generated person. Wardrobe and cosmetics mostly; anything held or
+worn where the human is what sells it.
+
+- This is the one product mode with an identity in it. If the user has a saved character, use it
+  and follow `rendrr-characters` — the reference roles and the faceless lane apply here too.
+- Without a character, describe the person in the least specific terms that still serve the brief
+  (build, hair length, approximate age) and let the model choose the face. A vaguely described
+  person is stable; a precisely described one that is not a saved character drifts between runs.
+- The garment is the subject: give it its own role line, name the colour, weave and cut, and say
+  "exactly these garments, worn".
+- Crop deliberately. A three-quarter crop that ends above the chin keeps attention on the product
+  and removes the whole class of face problems.
+- For motion, hand off to `rendrr-ugc-ads` (`try-on` mode) — this mode is stills only.
+
+---
+
 ## Choosing between modes
 
 Go by where the image will be used, not by the noun the user reached for:
@@ -142,6 +222,24 @@ Go by where the image will be used, not by the noun the user reached for:
 - Ingredients, kits, "what's in the box" → flat-lay
 - Scale, texture, or a human moment → hands-on close-up
 - A range page or a launch announcement → product lineup
+- Pinterest, a pin, a vertical moodboard → Pinterest pin
+- A swipeable multi-slide post → social carousel
+- Paid social, Meta/TikTok ads, "a few versions to test" → ad creative pack
+- Worn, on a body, a lookbook, virtual try-on → model try-on
 
 When two fit, take the narrower one. If the user has named a placement ("for our Black Friday email
 banner"), the placement decides.
+
+### Tie-breakers
+
+The cases that come up often enough to settle in advance:
+
+| The brief | Mode | Why |
+|---|---|---|
+| "Pinterest pin of my product on a kitchen counter" | Pinterest pin | the platform wins over the setting |
+| "Hero banner showing the product in use" | banner composition | the format wins over the scene |
+| "Carousel of my product in different rooms" | social carousel | multi-slide wins over the setting |
+| "Close-up of someone applying the serum" | hands-on close-up | the specific genre wins |
+| "Ads with a model wearing it" | ad creative pack | the placement wins over the subject |
+| "Autumn version of this shot" | seasonal restyle | an existing image wins over everything |
+
