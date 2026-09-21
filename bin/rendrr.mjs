@@ -34,7 +34,9 @@ Usage: rendrr <command> [args] [--json] [--dry-run]
   apps run <id> <file|url|library name> [--ratio 16:9] [--prompt "<text>"]
   virality <file|url> [--platform TikTok|Reels|Shorts]
   flows ls | flows get <id>
-  flows run | flows status       not available yet (needs Flow-as-API, sprint 4)
+  flows run <id> [--in key=value]... [--wait] [--timeout <seconds>]
+                                 run a saved flow once on the server; everything lands in your Library
+  flows status <run_id> [--wait] [--timeout <seconds>]
   credits
   jobs wait <statusUrl> <responseUrl> [--timeout <seconds>]
 
@@ -46,9 +48,9 @@ Env: RENDRR_TOKEN (required), RENDRR_HOST (default https://api.rendrr.ai)`;
 // ── args ─────────────────────────────────────────────────────────────────────────────────────────
 // Flags that are switches: they never take the next word as their value (otherwise
 // `apps run upscale --dry-run photo.png` would swallow the file).
-const BOOL_FLAGS = new Set(['json', 'dryRun', 'help']);
+const BOOL_FLAGS = new Set(['json', 'dryRun', 'help', 'wait']);
 function parseArgs(argv) {
-  const pos = [], flags = {}, multi = { image: [], slot: [], field: [], choice: [], param: [], tag: [] };
+  const pos = [], flags = {}, multi = { image: [], slot: [], field: [], choice: [], param: [], tag: [], in: [] };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a.startsWith('--')) {
@@ -245,7 +247,43 @@ async function main() {
   if (cmd === 'flows') {
     if (!sub || sub === 'ls') { const d = await tool('flows', {}); failIf(d); out(d, (xs) => { for (const f of (Array.isArray(xs) ? xs : (xs.flows || []))) console.log([f.id, f.name, (f.nodes || f.nodeCount || '') + ' nodes'].join('\t')); }); return; }
     if (sub === 'get') { if (!pos[2]) die('flows get <id>'); const d = await tool('flow_get', { id: pos[2] }); failIf(d); out(d); return; }
-    if (sub === 'run' || sub === 'status') die('flows ' + sub + ' needs Flow-as-API (roadmap sprint 4, A6) and is not available yet. Run the flow from the canvas for now.', 2);
+    // Flow-as-API (A6, 21 sep '26): flow_run start één run op de server, flow_status leest hem (wacht max 45 s per call).
+    if (sub === 'run' || sub === 'status') {
+      let runId = pos[2];
+      if (!runId) die(sub === 'run' ? 'flows run <flow id> [--in key=value]...' : 'flows status <run_id>');
+      if (sub === 'run') {
+        const inputs = {};
+        for (const kv of (multi.in || [])) {
+          const i = String(kv).indexOf('=');
+          if (i < 1) die('--in takes key=value (the key is an input key or a node id, see flows get)');
+          const k = String(kv).slice(0, i), v = String(kv).slice(i + 1);
+          // Een lijst ([...]) = library-ids voor een product/character/clothing/scene-node; een lokaal bestand wordt eerst geüpload.
+          if (v.startsWith('[')) { try { inputs[k] = JSON.parse(v); } catch (e) { die('--in ' + k + ': not valid JSON'); } }
+          else inputs[k] = await asRef(v);
+        }
+        const d = await tool('flow_run', { flow_id: runId, inputs });
+        failIf(d);
+        runId = d.run_id;
+        if (!flags.wait) { out(d, (x) => { console.log(x.run_id + '\t' + x.status); console.log('rendrr flows status ' + x.run_id + ' --wait'); }); return; }
+      }
+      const limit = Date.now() + (Number(flags.timeout) || (flags.wait ? 900 : 30)) * 1000;
+      for (;;) {
+        const left = Math.max(0, Math.min(45, Math.round((limit - Date.now()) / 1000)));
+        const d = await tool('flow_status', { run_id: runId, timeout: flags.wait ? left : 0 });
+        if (d && d.ok === false && d.code) failIf(d);
+        if (d.done || !flags.wait || Date.now() >= limit) {
+          out(d, (x) => {
+            console.log(x.run_id + '\t' + x.status + (x.credits != null ? '\t✦ ' + x.credits : ''));
+            for (const o of (x.outputs || [])) console.log(o.kind === 'text' ? ('[' + (o.label || o.node_id) + '] ' + o.text) : (abs(o.url) + '  (' + o.kind + (o.library_id ? ', library ' + o.library_id : '') + (o.output ? ', output' : '') + ')'));
+            if (x.error) console.log('error: ' + x.error);
+            if (!x.done) console.log('still running: rendrr flows status ' + x.run_id + ' --wait');
+          });
+          if (d.status === 'failed') process.exit(1);
+          return;
+        }
+        if (!AS_JSON) process.stderr.write('.');
+      }
+    }
     die('flows: ls | get | run | status');
   }
   if (cmd === 'credits') {
