@@ -54,7 +54,7 @@ Usage: rendrr <command> [args] [--json] [--dry-run]
   credits
   jobs wait <job_id> [--timeout <seconds>]     a background job (generate with async)
   jobs wait <statusUrl> <responseUrl>          owner key only: a raw fal job
-  login | logout                 sign in with your rendrr account (browser) / forget it on this machine
+  login | logout                 sign in with your rendrr account (browser) / sign out (revokes the session)
 
   --dry-run   price only: prints the credits the run would cost, runs nothing
   --json      print the raw JSON reply
@@ -93,10 +93,20 @@ function die(msg, code) { process.stderr.write('rendrr: ' + msg + '\n'); process
 // ── credentials (rendrr login) ───────────────────────────────────────────────────────────────────
 function loadCreds() { try { const c = JSON.parse(fs.readFileSync(CRED_FILE, 'utf8')); return (c && c.access_token) ? c : null; } catch (e) { return null; } }
 function saveCreds(c) {
+  // Atomair (review Sprint 5): eerst een eigen tijdelijk bestand met 0600, dan hernoemen. Een lezer ziet nooit een half
+  // bestand, en een bestaand, te ruim bestand is nooit even leesbaar met de nieuwe tokens erin.
   fs.mkdirSync(CRED_DIR, { recursive: true, mode: 0o700 });
-  fs.writeFileSync(CRED_FILE, JSON.stringify(c, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(CRED_FILE, 0o600); } catch (e) { /* Windows: the file sits in the user profile */ }
+  try { fs.chmodSync(CRED_DIR, 0o700); } catch (e) { /* Windows: het gebruikersprofiel regelt de rechten */ }
+  const tmp = CRED_FILE + '.' + process.pid + '.' + Date.now() + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(c, null, 2), { mode: 0o600 });
+  try { fs.renameSync(tmp, CRED_FILE); } catch (e) { try { fs.unlinkSync(CRED_FILE); } catch (e2) {} fs.renameSync(tmp, CRED_FILE); }
+  try { fs.chmodSync(CRED_FILE, 0o600); } catch (e) { /* Windows */ }
 }
+// Tekst van buiten (een foutmelding van de server of de callback) nooit rauw naar de terminal: geen stuurtekens.
+const CTRL_RE = new RegExp('[' + String.fromCharCode(0) + '-' + String.fromCharCode(31) + String.fromCharCode(127) + '-' + String.fromCharCode(159) + ']', 'g');
+function clean(s) { return String(s || '').replace(CTRL_RE, ' ').slice(0, 300); }
+// De OAuth-host krijgt tokens: alleen https, of http op loopback (lokaal testen).
+function mcpHostOk(h) { try { const u = new URL(h); return u.protocol === 'https:' || (u.protocol === 'http:' && /^(127\.0\.0\.1|localhost|\[::1\])$/.test(u.hostname)); } catch (e) { return false; } }
 function b64url(buf) { return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
 function openBrowser(url) {
   // Never through a shell: the URL carries & and = that cmd.exe would split on.
@@ -107,12 +117,18 @@ async function refreshCreds(c) {
   if (!c || !c.refresh_token || !c.client_id) return null;
   const r = await fetch((c.host || MCP_HOST) + '/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: c.refresh_token, client_id: c.client_id }) }).catch(() => null);
   const j = r ? await r.json().catch(() => null) : null;
-  if (!j || !j.access_token) return null;
+  if (!j || !j.access_token) {
+    // Race (review Sprint 5): een tweede CLI-proces ververste net met hetzelfde refresh-token (dat is daarna ongeldig).
+    // Dan staat er al een vers paar in het bestand: gebruik dat in plaats van uit te loggen.
+    const now = loadCreds();
+    return (now && now.access_token !== c.access_token) ? now : null;
+  }
   const next = Object.assign({}, c, { access_token: j.access_token, refresh_token: j.refresh_token || c.refresh_token, expires_at: Date.now() + (Number(j.expires_in) || 3600) * 1000 });
   saveCreds(next);
   return next;
 }
 async function login() {
+  if (!mcpHostOk(MCP_HOST)) die('RENDRR_MCP_HOST must be https (or http on 127.0.0.1 for local testing).');
   const verifier = b64url(crypto.randomBytes(32));
   const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
   const state = b64url(crypto.randomBytes(16));
@@ -129,12 +145,15 @@ async function login() {
       srv.on('request', (req, res) => {
         const u = new URL(req.url, redirect);
         if (u.pathname !== '/callback') { res.writeHead(404); res.end(); return; }
-        const ok = u.searchParams.get('state') === state && !!u.searchParams.get('code');
+        // Alleen een antwoord met ONZE state telt (review Sprint 5): een verdwaalde of vijandige callback (een ander lokaal
+        // proces, een pagina die poorten afscant) krijgt 400 en de login wacht gewoon verder.
+        if (u.searchParams.get('state') !== state) { res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8' }); res.end('Not this sign-in.'); return; }
+        const ok = !!u.searchParams.get('code');
         res.writeHead(ok ? 200 : 400, { 'content-type': 'text/plain; charset=utf-8' });
         res.end(ok ? 'rendrr CLI is signed in. You can close this tab.' : 'Sign-in failed. Go back to the terminal.');
         clearTimeout(t);
         if (ok) resolve(u.searchParams.get('code'));
-        else reject(new Error(u.searchParams.get('error_description') || u.searchParams.get('error') || 'the sign-in answer did not match this login'));
+        else reject(new Error(clean(u.searchParams.get('error_description') || u.searchParams.get('error') || 'the sign-in was cancelled')));
       });
       process.stdout.write('Opening your browser to sign in to rendrr.\nIf nothing opens, visit:\n' + authUrl + '\n');
       if (!process.env.RENDRR_NO_BROWSER) openBrowser(authUrl);
@@ -165,6 +184,7 @@ async function tool(name, args) {
   }
   let c = loadCreds();
   if (!c) die('not signed in: run `rendrr login` (or set RENDRR_TOKEN, the owner key).');
+  if (!mcpHostOk(c.host || MCP_HOST)) die('the stored sign-in points at a non-https host; run `rendrr login` again.');
   const host = c.host || MCP_HOST;
   const call = (cc) => fetch(host + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json', authorization: 'Bearer ' + cc.access_token }, body });
   if (c.expires_at && Date.now() > c.expires_at - 60000) c = (await refreshCreds(c)) || c;
@@ -235,7 +255,15 @@ async function main() {
   const cmd = pos[0], sub = pos[1];
   if (!cmd || cmd === 'help' || flags.help) { console.log(HELP); return; }
   if (cmd === 'login') { await login(); const d = await tool('credits', {}); failIf(d); out(d, (x) => console.log(x.enabled ? ('✦ ' + x.balance + (x.plan ? ' · ' + x.plan : '')) : ('signed in' + (x.plan ? ' · ' + x.plan : '')))); return; }
-  if (cmd === 'logout') { try { fs.unlinkSync(CRED_FILE); console.log('Signed out on this machine (the stored tokens are deleted; an unused session expires on its own after 30 days).'); } catch (e) { console.log('Not signed in on this machine.'); } return; }
+  if (cmd === 'logout') {
+    const c0 = loadCreds();
+    if (!c0) { console.log('Not signed in on this machine.'); return; }
+    // Echt intrekken (RFC 7009, review Sprint 5), daarna pas het bestand weg; een onbereikbare server houdt uitloggen niet tegen.
+    if (mcpHostOk(c0.host || MCP_HOST) && c0.refresh_token && c0.client_id) await fetch((c0.host || MCP_HOST) + '/revoke', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ token: c0.refresh_token, client_id: c0.client_id, token_type_hint: 'refresh_token' }) }).catch(() => null);
+    try { fs.unlinkSync(CRED_FILE); } catch (e) {}
+    console.log('Signed out: the session is revoked and the stored tokens are deleted.');
+    return;
+  }
 
   if (cmd === 'generate') {
     const args = {};
@@ -402,9 +430,12 @@ async function main() {
     for (;;) {
       const left = Math.max(0, Math.min(45, Math.round((limit - Date.now()) / 1000)));
       const d = await tool('job_wait', { job_id: pos[2], timeout: left }); failIf(d);
-      if (d.done || Date.now() >= limit) {
-        out(d, (x) => { for (const j of (x.jobs || [])) { console.log(j.job_id + '\t' + j.status + (j.credits != null ? '\t✦ ' + j.credits : '')); for (const m of (j.media || [])) console.log(abs(m.url) + '  (' + (m.kind || 'media') + ')'); if (j.error) console.log('error: ' + j.error); } });
+      // Onbekende of verlopen job: zeggen en falen i.p.v. stil 0 (review Sprint 5).
+      if (d.done && !(d.jobs || []).length) die('no job ' + pos[2] + ' on this account (unknown or expired).', 1);
+      if (d.done || Date.now() >= limit || left <= 3) {
+        out(d, (x) => { for (const j of (x.jobs || [])) { console.log(j.job_id + '\t' + j.status + (j.credits != null ? '\t✦ ' + j.credits : '')); for (const m of (j.media || [])) console.log(abs(m.url) + '  (' + (m.kind || 'media') + ')'); if (j.error) console.log('error: ' + clean(j.error)); } });
         if (!d.done) process.exit(3);
+        if ((d.jobs || []).some((j) => j && j.status === 'failed')) process.exit(1);
         return;
       }
       if (!AS_JSON) process.stderr.write('.');
