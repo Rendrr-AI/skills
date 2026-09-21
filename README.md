@@ -61,9 +61,12 @@ the file itself changes.
 
 `bin/rendrr.mjs` is a small, dependency-free command line for the same tools — handy in a terminal
 agent and for local files and batches (`rendrr generate`, `rendrr apps run`, `rendrr virality`,
-`rendrr library upload`, `rendrr credits`, `rendrr --help` for the rest). Today it runs with the
-account owner's key (`RENDRR_TOKEN`); signing in with your own rendrr account from the terminal comes
-in a later release, together with `npx rendrr`.
+`rendrr library upload`, `rendrr credits`, `rendrr --help` for the rest).
+
+Sign in with your own rendrr account: `rendrr login` opens your browser on the same sign-in as the MCP
+connector (Expert plan) and keeps the session in `~/.rendrr/credentials.json`; `rendrr logout` forgets it.
+Two things still need the account owner's key (`RENDRR_TOKEN`): uploading a local file and polling a raw
+fal job. With a login, pass an https url or a library name instead. The CLI is not on npm yet.
 
 ## Licence
 

@@ -7,15 +7,26 @@
 // HTTP calls MCP has no tool for: uploading a local file (/api/upload) and polling a queued job
 // (/api/fal/poll).
 //
-// Auth today: RENDRR_TOKEN = the owner key (the MCP key door + x-api-token). Customer tokens (a
-// `rendrr login` that mints one through the OAuth door) arrive in sprint 5.
-//   RENDRR_TOKEN   required
-//   RENDRR_HOST    optional, default https://api.rendrr.ai (the machine host, not behind Access)
+// Two ways in (Sprint 5, 21 sep '26):
+//   rendrr login   a customer signs in through the SAME OAuth door as the MCP connector (browser, PKCE,
+//                  a loopback redirect). The tokens live in ~/.rendrr/credentials.json (mode 0600) and
+//                  refresh themselves. MCP access needs the Expert plan; the server says so if not.
+//   RENDRR_TOKEN   the owner key (the MCP key door + x-api-token). Only this one can upload a local file
+//                  (/api/upload) or poll a raw fal job (/api/fal/poll): those are not MCP tools.
+//   RENDRR_HOST       optional, default https://api.rendrr.ai (owner key door)
+//   RENDRR_MCP_HOST   optional, default https://mcp.rendrr.ai (the OAuth door)
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
+import crypto from 'node:crypto';
+import nodeHttp from 'node:http';
+import { spawn } from 'node:child_process';
 
 const HOST = String(process.env.RENDRR_HOST || 'https://api.rendrr.ai').replace(/\/+$/, '');
+const MCP_HOST = String(process.env.RENDRR_MCP_HOST || 'https://mcp.rendrr.ai').replace(/\/+$/, '');
 const TOKEN = String(process.env.RENDRR_TOKEN || '').trim();
+const CRED_DIR = path.join(os.homedir(), '.rendrr');
+const CRED_FILE = path.join(CRED_DIR, 'credentials.json');
 
 const HELP = `rendrr — the rendrr studio from your terminal
 
@@ -41,12 +52,15 @@ Usage: rendrr <command> [args] [--json] [--dry-run]
   workflows ls | workflows get <key> [--file references/<name>.md]
                                  the rendrr playbooks (the skills load these)
   credits
-  jobs wait <statusUrl> <responseUrl> [--timeout <seconds>]
+  jobs wait <job_id> [--timeout <seconds>]     a background job (generate with async)
+  jobs wait <statusUrl> <responseUrl>          owner key only: a raw fal job
+  login | logout                 sign in with your rendrr account (browser) / forget it on this machine
 
   --dry-run   price only: prints the credits the run would cost, runs nothing
   --json      print the raw JSON reply
 
-Env: RENDRR_TOKEN (required), RENDRR_HOST (default https://api.rendrr.ai)`;
+Sign in with "rendrr login" (Expert plan), or set RENDRR_TOKEN (the owner key).
+Env: RENDRR_TOKEN, RENDRR_HOST (default https://api.rendrr.ai), RENDRR_MCP_HOST (default https://mcp.rendrr.ai)`;
 
 // ── args ─────────────────────────────────────────────────────────────────────────────────────────
 // Flags that are switches: they never take the next word as their value (otherwise
@@ -76,24 +90,95 @@ function kv(list) {
 }
 function die(msg, code) { process.stderr.write('rendrr: ' + msg + '\n'); process.exit(code == null ? 1 : code); }
 
+// ── credentials (rendrr login) ───────────────────────────────────────────────────────────────────
+function loadCreds() { try { const c = JSON.parse(fs.readFileSync(CRED_FILE, 'utf8')); return (c && c.access_token) ? c : null; } catch (e) { return null; } }
+function saveCreds(c) {
+  fs.mkdirSync(CRED_DIR, { recursive: true, mode: 0o700 });
+  fs.writeFileSync(CRED_FILE, JSON.stringify(c, null, 2), { mode: 0o600 });
+  try { fs.chmodSync(CRED_FILE, 0o600); } catch (e) { /* Windows: the file sits in the user profile */ }
+}
+function b64url(buf) { return Buffer.from(buf).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''); }
+function openBrowser(url) {
+  // Never through a shell: the URL carries & and = that cmd.exe would split on.
+  const cmd = process.platform === 'win32' ? ['rundll32', ['url.dll,FileProtocolHandler', url]] : process.platform === 'darwin' ? ['open', [url]] : ['xdg-open', [url]];
+  try { const ch = spawn(cmd[0], cmd[1], { stdio: 'ignore', detached: true }); ch.on('error', () => {}); ch.unref(); } catch (e) { /* the URL is printed as well */ }
+}
+async function refreshCreds(c) {
+  if (!c || !c.refresh_token || !c.client_id) return null;
+  const r = await fetch((c.host || MCP_HOST) + '/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: c.refresh_token, client_id: c.client_id }) }).catch(() => null);
+  const j = r ? await r.json().catch(() => null) : null;
+  if (!j || !j.access_token) return null;
+  const next = Object.assign({}, c, { access_token: j.access_token, refresh_token: j.refresh_token || c.refresh_token, expires_at: Date.now() + (Number(j.expires_in) || 3600) * 1000 });
+  saveCreds(next);
+  return next;
+}
+async function login() {
+  const verifier = b64url(crypto.randomBytes(32));
+  const challenge = b64url(crypto.createHash('sha256').update(verifier).digest());
+  const state = b64url(crypto.randomBytes(16));
+  const srv = nodeHttp.createServer();
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const redirect = 'http://127.0.0.1:' + srv.address().port + '/callback';
+  try {
+    const reg = await fetch(MCP_HOST + '/register', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ client_name: 'rendrr CLI', redirect_uris: [redirect], grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' }) }).catch(() => null);
+    const rj = reg ? await reg.json().catch(() => null) : null;
+    if (!rj || !rj.client_id) die('could not reach the rendrr sign-in (' + MCP_HOST + '/register' + (reg ? ', HTTP ' + reg.status : '') + ').');
+    const authUrl = MCP_HOST + '/authorize?' + new URLSearchParams({ response_type: 'code', client_id: rj.client_id, redirect_uri: redirect, code_challenge: challenge, code_challenge_method: 'S256', state, scope: 'mcp' });
+    const code = await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('no sign-in within 5 minutes')), 300000);
+      srv.on('request', (req, res) => {
+        const u = new URL(req.url, redirect);
+        if (u.pathname !== '/callback') { res.writeHead(404); res.end(); return; }
+        const ok = u.searchParams.get('state') === state && !!u.searchParams.get('code');
+        res.writeHead(ok ? 200 : 400, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end(ok ? 'rendrr CLI is signed in. You can close this tab.' : 'Sign-in failed. Go back to the terminal.');
+        clearTimeout(t);
+        if (ok) resolve(u.searchParams.get('code'));
+        else reject(new Error(u.searchParams.get('error_description') || u.searchParams.get('error') || 'the sign-in answer did not match this login'));
+      });
+      process.stdout.write('Opening your browser to sign in to rendrr.\nIf nothing opens, visit:\n' + authUrl + '\n');
+      if (!process.env.RENDRR_NO_BROWSER) openBrowser(authUrl);
+    }).catch((e) => die('sign-in failed: ' + e.message));
+    const tok = await fetch(MCP_HOST + '/token', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: redirect, client_id: rj.client_id, code_verifier: verifier }) }).catch(() => null);
+    const tj = tok ? await tok.json().catch(() => null) : null;
+    if (!tj || !tj.access_token) die('the token exchange failed: ' + ((tj && (tj.error_description || tj.error)) || (tok ? 'HTTP ' + tok.status : 'no answer')));
+    saveCreds({ host: MCP_HOST, client_id: rj.client_id, access_token: tj.access_token, refresh_token: tj.refresh_token || '', expires_at: Date.now() + (Number(tj.expires_in) || 3600) * 1000 });
+  } finally { srv.close(); }
+  process.stdout.write('Signed in. Credentials: ' + CRED_FILE + '\n');
+}
+
 // ── transport ────────────────────────────────────────────────────────────────────────────────────
 let rpcId = 0;
-async function tool(name, args) {
-  if (!TOKEN) die('set RENDRR_TOKEN first (the owner key). Customer tokens arrive in sprint 5.');
-  const r = await fetch(HOST + '/api/mcp/' + encodeURIComponent(TOKEN), {
-    method: 'POST', headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/call', params: { name, arguments: args || {} } }),
-  });
-  if (r.status === 404) die('the token was not accepted (404 on the key door). Check RENDRR_TOKEN and RENDRR_HOST.');
-  const j = await r.json().catch(() => null);
-  if (!j) die('unreadable reply from ' + HOST + ' (HTTP ' + r.status + ')');
+function mcpReply(j, host, status) {
+  if (!j) die('unreadable reply from ' + host + ' (HTTP ' + status + ')');
   if (j.error) die((j.error.message || 'MCP error') + (j.error.code ? ' (' + j.error.code + ')' : ''));
   const txt = ((j.result && j.result.content) || []).filter((c) => c && c.type === 'text').map((c) => c.text).join('');
   let data; try { data = JSON.parse(txt); } catch (e) { data = txt; }
   return data;
 }
+async function tool(name, args) {
+  const body = JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/call', params: { name, arguments: args || {} } });
+  if (TOKEN) {
+    const r = await fetch(HOST + '/api/mcp/' + encodeURIComponent(TOKEN), { method: 'POST', headers: { 'content-type': 'application/json' }, body });
+    if (r.status === 404) die('the token was not accepted (404 on the key door). Check RENDRR_TOKEN and RENDRR_HOST.');
+    return mcpReply(await r.json().catch(() => null), HOST, r.status);
+  }
+  let c = loadCreds();
+  if (!c) die('not signed in: run `rendrr login` (or set RENDRR_TOKEN, the owner key).');
+  const host = c.host || MCP_HOST;
+  const call = (cc) => fetch(host + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json', authorization: 'Bearer ' + cc.access_token }, body });
+  if (c.expires_at && Date.now() > c.expires_at - 60000) c = (await refreshCreds(c)) || c;
+  let r = await call(c);
+  if (r.status === 401) {
+    const c2 = await refreshCreds(c);
+    if (!c2) die('your rendrr session expired: run `rendrr login` again.');
+    r = await call(c2);
+    if (r.status === 401) die('your rendrr session was not accepted: run `rendrr login` again.');
+  }
+  return mcpReply(await r.json().catch(() => null), host, r.status);
+}
 async function http(pathname, init) {
-  if (!TOKEN) die('set RENDRR_TOKEN first.');
+  if (!TOKEN) die('this needs the owner key (RENDRR_TOKEN): uploading a local file and raw fal polling are not part of the customer tools. Pass an https url or a library name instead, or upload in the studio (Upload media).');
   const headers = Object.assign({ 'x-api-token': TOKEN }, (init && init.headers) || {});
   const r = await fetch(HOST + pathname, Object.assign({}, init || {}, { headers }));
   const j = await r.json().catch(() => ({ ok: false, error: 'unreadable reply (HTTP ' + r.status + ')' }));
@@ -149,6 +234,8 @@ async function main() {
   const dry = !!flags.dryRun;
   const cmd = pos[0], sub = pos[1];
   if (!cmd || cmd === 'help' || flags.help) { console.log(HELP); return; }
+  if (cmd === 'login') { await login(); const d = await tool('credits', {}); failIf(d); out(d, (x) => console.log(x.enabled ? ('✦ ' + x.balance + (x.plan ? ' · ' + x.plan : '')) : ('signed in' + (x.plan ? ' · ' + x.plan : '')))); return; }
+  if (cmd === 'logout') { try { fs.unlinkSync(CRED_FILE); console.log('Signed out on this machine (the stored tokens are deleted; an unused session expires on its own after 30 days).'); } catch (e) { console.log('Not signed in on this machine.'); } return; }
 
   if (cmd === 'generate') {
     const args = {};
@@ -309,9 +396,23 @@ async function main() {
     out(d, (x) => { if (!x.enabled) { console.log('credits are not metered on this account' + (x.plan ? ' (plan ' + x.plan + ')' : '')); return; } console.log('✦ ' + x.balance + ' (plan ' + (x.planCredits || 0) + ' + top-up ' + (x.topupCredits || 0) + ')' + (x.plan ? ' · ' + x.plan : '') + (x.exempt ? ' · exempt' : '')); });
     return;
   }
+  if (cmd === 'jobs' && sub === 'wait' && pos[2] && !pos[3]) {
+    // Een job_id (generate { async: true } of generate_batch): via de MCP-tool job_wait, dus ook met een klant-login.
+    const limit = Date.now() + (Number(flags.timeout) || 600) * 1000;
+    for (;;) {
+      const left = Math.max(0, Math.min(45, Math.round((limit - Date.now()) / 1000)));
+      const d = await tool('job_wait', { job_id: pos[2], timeout: left }); failIf(d);
+      if (d.done || Date.now() >= limit) {
+        out(d, (x) => { for (const j of (x.jobs || [])) { console.log(j.job_id + '\t' + j.status + (j.credits != null ? '\t✦ ' + j.credits : '')); for (const m of (j.media || [])) console.log(abs(m.url) + '  (' + (m.kind || 'media') + ')'); if (j.error) console.log('error: ' + j.error); } });
+        if (!d.done) process.exit(3);
+        return;
+      }
+      if (!AS_JSON) process.stderr.write('.');
+    }
+  }
   if (cmd === 'jobs' && sub === 'wait') {
     const su = pos[2], ru = pos[3];
-    if (!su || !ru) die('jobs wait <statusUrl> <responseUrl>');
+    if (!su || !ru) die('jobs wait <job_id>, or (owner key) jobs wait <statusUrl> <responseUrl>');
     const limit = Date.now() + (Number(flags.timeout) || 600) * 1000;
     for (;;) {
       const j = await http('/api/fal/poll', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ statusUrl: su, responseUrl: ru }) });
