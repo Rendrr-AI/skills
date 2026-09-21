@@ -16,8 +16,10 @@ npx skills add rendrr-ai/skills
 Already installed? `npx skills update` refreshes the skills you have; re-run the `add` command
 above to also pick up newly added skills.
 
-Day-to-day improvements (models, prompt recipes, pricing) ship server-side and reach every
-installed skill instantly — updating is only needed when the skill files themselves change.
+Each skill is a thin router: it tells the agent to load its playbook from rendrr's server with the MCP
+tool `workflow_get` (or `rendrr workflows get <key>` in the CLI). Playbooks, models, prompt recipes and
+pricing all ship server-side and reach every installed skill instantly; updating is only needed when
+the router files themselves change.
 
 Then connect rendrr itself:
 

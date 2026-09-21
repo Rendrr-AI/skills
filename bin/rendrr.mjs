@@ -38,6 +38,8 @@ Usage: rendrr <command> [args] [--json] [--dry-run]
                                  run a saved flow once on the server; everything lands in your Library
                                  value = text, an https url, a library id, ["id","id"] or @file to upload a local file
   flows status <run_id> [--wait] [--timeout <seconds>]
+  workflows ls | workflows get <key> [--file references/<name>.md]
+                                 the rendrr playbooks (the skills load these)
   credits
   jobs wait <statusUrl> <responseUrl> [--timeout <seconds>]
 
@@ -290,6 +292,17 @@ async function main() {
       }
     }
     die('flows: ls | get | run | status');
+  }
+  // S2 (21 sep '26): de playbooks van de server; de publieke skills zijn routers naar precies dit.
+  if (cmd === 'workflows') {
+    if (sub === 'ls' || !sub) { const d = await tool('workflows', {}); failIf(d); out(d, (x) => { for (const w of (x.workflows || [])) console.log(w.key + '\t' + w.title + (w.files && w.files.length ? '\t(' + w.files.length + ' files)' : '')); }); return; }
+    if (sub === 'get') {
+      const key = pos[2]; if (!key) die('workflows get <key> [--file references/<name>.md]');
+      const d = await tool('workflow_get', { key, file: flags.file || undefined }); failIf(d);
+      out(d, (x) => { process.stdout.write(String(x.body || '') + '\n'); });
+      return;
+    }
+    die('workflows ls | workflows get <key>');
   }
   if (cmd === 'credits') {
     const d = await tool('credits', {}); failIf(d);
