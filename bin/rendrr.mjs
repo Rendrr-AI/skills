@@ -36,6 +36,7 @@ Usage: rendrr <command> [args] [--json] [--dry-run]
   flows ls | flows get <id>
   flows run <id> [--in key=value]... [--wait] [--timeout <seconds>]
                                  run a saved flow once on the server; everything lands in your Library
+                                 value = text, an https url, a library id, ["id","id"] or @file to upload a local file
   flows status <run_id> [--wait] [--timeout <seconds>]
   credits
   jobs wait <statusUrl> <responseUrl> [--timeout <seconds>]
@@ -252,14 +253,18 @@ async function main() {
       let runId = pos[2];
       if (!runId) die(sub === 'run' ? 'flows run <flow id> [--in key=value]...' : 'flows status <run_id>');
       if (sub === 'run') {
+        // Geen dry run (review 4c): een stille echte run op --dry-run is een betaalde run die niemand vroeg.
+        if (flags.dryRun) die('flows run has no dry run yet: the price per node shows on the canvas (Flows, Run flow).', 2);
         const inputs = {};
         for (const kv of (multi.in || [])) {
           const i = String(kv).indexOf('=');
           if (i < 1) die('--in takes key=value (the key is an input key or a node id, see flows get)');
           const k = String(kv).slice(0, i), v = String(kv).slice(i + 1);
-          // Een lijst ([...]) = library-ids voor een product/character/clothing/scene-node; een lokaal bestand wordt eerst geüpload.
+          // Een lijst ([...]) = library-ids voor een product/character/clothing/scene-node. Alleen @pad uploadt een lokaal
+          // bestand (review 4c): een gewone tekst die toevallig een bestandsnaam is, ging anders ongevraagd de Library in.
           if (v.startsWith('[')) { try { inputs[k] = JSON.parse(v); } catch (e) { die('--in ' + k + ': not valid JSON'); } }
-          else inputs[k] = await asRef(v);
+          else if (v.startsWith('@')) { const pth = v.slice(1); if (!fs.existsSync(pth)) die('--in ' + k + ': file not found: ' + pth); inputs[k] = await asRef(pth); }
+          else inputs[k] = v;
         }
         const d = await tool('flow_run', { flow_id: runId, inputs });
         failIf(d);
