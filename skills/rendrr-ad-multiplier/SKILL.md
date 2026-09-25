@@ -16,6 +16,17 @@ description: >-
 
 # rendrr Ad Multiplier
 
+> ### ⛔ Never start a run the user did not ask for
+>
+> Every `generate`, `generate_batch`, `flow_run`, `character_sheet`, `voice_clone` or template run costs the
+> user credits and lands in their library. So: **no test runs, no probes, no demo or "example" runs, no
+> "let me just try the model", and no variants or batches on your own initiative.** Run exactly what the
+> user asked for, one run at a time, and show the result before running anything else. Need a price? Read
+> `gateway_models` / `credits`, or use `dryRun: true` only when the user asked what something costs. When
+> a workflow needs an asset the user did not ask you to generate (a voice-over, a placeholder image, a
+> test clip), stop and ask first. Reusing, trimming or re-timing something that already exists is fine.
+> (Rule added 25 Sep 2026 after unrequested runs.)
+
 This skill is a router. The playbook itself lives on rendrr's server, so every agent always gets
 the current version without a skill update.
 
